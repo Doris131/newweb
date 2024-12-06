@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寵物贈與契約生成</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <script src="檔案位置/TaipeiSansTCBeta-normal.js"></script> <!-- 替換為您的字體文件路徑 -->
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        label { display: block; margin-top: 10px; }
+        input, textarea { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 20px; padding: 10px 20px; }
+        .contract { margin-top: 20px; white-space: pre-wrap; }
+        .signature-area { margin-top: 40px; }
+        .signature-line { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+        .signature-line div { border-top: 1px solid #000; width: 45%; padding-top: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>寵物贈與契約</h1>
+        <form id="contractForm">
+            <label for="giverName">贈與人姓名:</label>
+            <input type="text" id="giverName" required>
+
+            <label for="recipientName">受贈人姓名:</label>
+            <input type="text" id="recipientName" required>
+
+            <label for="petName">寵物姓名:</label>
+            <input type="text" id="petName" required>
+
+            <label for="contractDate">簽訂日期:</label>
+            <input type="date" id="contractDate" required>
+            <h2>新增條款</h2>
+            <textarea id="customTerms" rows="4" placeholder="請輸入額外的條款..."></textarea>
+
+            <button type="button" onclick="generateContract()">生成AI契約(可以重新生成)</button>
+        </form>
+        <div id="termsOutput" class="contract"></div>
+        <div id="contractOutput" class="contract"></div>
+
+        <div id="signatureArea" class="signature-area" style="display: none;">
+            <button onclick="generatePDF()">下載 PDF</button>
+        </div>
+
+        <button type="button" onclick="fetchAdoptionAdvice()">獲取AI領養建議</button>
+        <div id="adviceOutput"></div>
+
+    </div>
+
+    <script>
+        async function fetchContractTerms() {
+            const apiKey = "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";
+            const endpoint = "https://api.openai.com/v1/chat/completions";
+
+            const prompt = `生成寵物贈與契約7條條款，每條條款需具體描述贈與人甲方與受贈人乙方對寵物的責任和義務，例如照顧方式、違約罰則、探視權利等。條款需按照條理性分條列舉，清晰明確。`;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-4",
+                        messages: [
+                            { role: "system", content: "你是一個專業的寵物契約擬定顧問。" },
+                            { role: "user", content: prompt },
+                        ],
+                        max_tokens: 2000,
+                    }),
+                });
+
+                const data = await response.json();
+                if (data.choices && data.choices.length > 0) {
+                    return data.choices[0].message.content.trim();
+                } else {
+                    throw new Error("未能生成條款");
+                }
+            } catch (error) {
+                console.error("Error fetching contract terms:", error);
+                alert("生成條款時發生錯誤，請稍後再試。");
+                return null;
+            }
+        }
+
+
+        async function generateContract() {
+            const giverName = document.getElementById("giverName").value;
+            const recipientName = document.getElementById("recipientName").value;
+            const petName = document.getElementById("petName").value;
+            const contractDate = document.getElementById("contractDate").value;
+
+            const terms = await fetchContractTerms();
+            if (!terms) return;
+
+            const customTerms = document.getElementById("customTerms").value.trim();
+            const customTermsArray = customTerms ? customTerms.split("\n").map((term, index) => `${8 + index}. ${term.trim()}`) : [];
+
+            const contractText = `
+                贈與人：${giverName}（以下簡稱甲方）
+                受贈人：${recipientName}（以下簡稱乙方）
+                為贈與寵物：${petName}（以下簡稱丙方）
+                簽訂日期：${contractDate}
+                簽訂附條件贈與契約，兩造約定條款如下：
+                ${terms}
+                ${customTermsArray.join("\n")}
+
+                ----------------------------     ----------------------------
+                    甲方簽名 (贈與人)                   乙方簽名 (受贈人)
+
+                簽署日期：___________________
+            `;
+
+            document.getElementById("contractOutput").innerText = contractText;
+            document.getElementById("signatureArea").style.display = "block";
+        }
+
+        function addCustomTerms()
+        {
+            const customTerms = document.getElementById("customTerms").value.trim();
+            if (!customTerms) {
+                alert("請輸入條款內容！");
+                return;
+            }
+
+            const currentTerms = document.getElementById("contractOutput").innerText;
+            const newTerms = customTerms.split("\n").map((term, index) => `${8 + index}. ${term.trim()}`).join("\n");
+
+            document.getElementById("contractOutput").innerText = currentTerms + "\n" + newTerms;
+            document.getElementById("customTerms").value = ""; // 清空輸入框
+        }
+    
+
+        function generatePDF() {
+            const element = document.getElementById('contractOutput');
+            const opt = {
+                margin: 1,
+                filename: '寵物贈與契約.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(element).set(opt).save();
+        }
+
+        function fetchAdoptionAdvice() {
+            const apiKey = "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";
+            const endpoint = "https://api.openai.com/v1/chat/completions";
+
+            const petName = document.getElementById("petName").value;
+            const adviceOutput = document.getElementById("adviceOutput");
+
+            fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: "gpt-4",
+                    messages: [
+                        {
+                            role: "system",
+                            content: "你是一個專業的寵物領養顧問，提供一些寵物領養相關建議，及需要注意的問題。",
+                        },
+                        {
+                            role: "user",
+                            content: `寵物照顧本知識，請提供建議。`,
+                        },
+                    ],
+                    max_tokens: 1500,
+                }),
+            })
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.choices && data.choices.length > 0) {
+                    adviceOutput.innerText = "領養建議：" + data.choices[0].message.content.trim();
+                } else {
+                    adviceOutput.innerText = "無法獲取建議，請稍後再試。";
+                }
+            })
+            .catch((error) => {
+                console.error("Error:", error);
+                adviceOutput.innerText = "發生錯誤，無法獲取建議。";
+            });
+        }
+
+        
+    </script>
+</body>
+</html>
